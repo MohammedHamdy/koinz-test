@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\Helper;
 use App\Http\Requests\BookUserRequest;
 use App\Models\BookUser;
+use App\Models\User;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ class BookUserController extends Controller
     public function store(BookUserRequest $request): JsonResponse
     {
         try {
+
             DB::beginTransaction();
             $item = BookUser::create($request->validated());
             $item->save();
@@ -38,6 +40,9 @@ class BookUserController extends Controller
                 return $this->outApiJson('error-insert', trans('main.error_insert'));
             }
             DB::commit();
+            
+            $this->sendThanksMessage($request->user_id);
+            
             return $this->outApiJson('success', trans('main.created_successfully'), $item);
         } catch (Exception $th) {
             return $this->outApiJson('exception', $this->getExceptionMessage($th));
@@ -78,5 +83,14 @@ class BookUserController extends Controller
         } catch (Exception $th) {
             return $this->outApiJson('exception', $this->getExceptionMessage($th));
         }
-    }    
+    } 
+    
+    private function sendThanksMessage($user_id){
+        $userData = User::find($user_id);
+        $response = \Http::post('https://run.mocky.io/v3/'.env('SMS_APP_CODE'), [
+            'name' => $userData->name,
+            'phone' => $userData->phone_number,
+        ]);
+        return response()->json($response);
+    }
 }
