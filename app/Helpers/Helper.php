@@ -36,7 +36,7 @@ trait Helper
         return response()->json($outData, $responseStatus);
     }
 
-    public function getExceptionMessage(Exception $exception): string
+    public function getExceptionMessage(\Exception $exception): string
     {
        return config('app.env') == 'local' ? $exception->getMessage() : trans('main.exception');
     }
