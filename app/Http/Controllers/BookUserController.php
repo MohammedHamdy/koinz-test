@@ -52,34 +52,76 @@ class BookUserController extends Controller
     public function mostReadBooks(): JsonResponse
     {
         try {
-            $bookReads = \DB::select("
-            with recursive  t as( 
-                select book_id,start_page,max(end_page)end_page
-                  ,row_number()over(partition by book_id order by start_page) rn
-                from book_user
-                group by book_id,start_page
-              )
-              ,r as(
-                select 0 lvl,bu.book_id,bu.start_page,bu.end_page,bu.rn
-                from t bu
-                where not exists(select 1 from t bu2 
-                       where bu2.book_id=bu.book_id and bu2.rn<bu.rn
-                         and bu.start_page between bu2.start_page and bu2.end_page)
-                union all
-                select lvl+1,r.book_id,r.start_page,t.end_page,t.rn
-                from r inner join t on t.book_id=r.book_id and t.rn>r.rn
-                     and r.end_page between t.start_page and r.end_page
-              )
-              select book_id,book_name,sum(end_page-start_page+1) num_of_read_pages
-              from (
-                    select book_id,start_page,max(end_page) end_page 
-                    from r 
-                    group by book_id,start_page
-                ) gr
-                    JOIN books ON books.id=gr.book_id   
-              group by book_id ORDER by num_of_read_pages DESC LIMIT 5;
-            ");
-            return $this->outApiJson('success', trans('main.success'),  $bookReads);
+            $topReadBooks = \DB::select("
+            WITH RECURSIVE t AS (
+                SELECT 
+                    book_id,
+                    start_page,
+                    MAX(end_page) AS end_page,
+                    ROW_NUMBER() OVER (PARTITION BY book_id ORDER BY start_page) AS rn
+                FROM 
+                    book_user
+                GROUP BY 
+                    book_id, start_page
+            ),
+            r AS (
+                SELECT 
+                    0 AS lvl,
+                    bu.book_id,
+                    bu.start_page,
+                    bu.end_page,
+                    bu.rn
+                FROM 
+                    t AS bu
+                WHERE 
+                    NOT EXISTS (
+                        SELECT 
+                            1
+                        FROM 
+                            t AS bu2
+                        WHERE 
+                            bu2.book_id = bu.book_id
+                            AND bu2.rn < bu.rn
+                            AND bu.start_page BETWEEN bu2.start_page AND bu2.end_page
+                    )
+                UNION ALL
+                SELECT 
+                    lvl + 1,
+                    r.book_id,
+                    r.start_page,
+                    t.end_page,
+                    t.rn
+                FROM 
+                    r
+                INNER JOIN 
+                    t ON t.book_id = r.book_id
+                    AND t.rn > r.rn
+                    AND r.end_page BETWEEN t.start_page AND r.end_page
+            )
+            SELECT 
+                book_id,
+                book_name,
+                SUM(end_page - start_page + 1) AS num_of_read_pages
+            FROM (
+                SELECT 
+                    book_id,
+                    start_page,
+                    MAX(end_page) AS end_page
+                FROM 
+                    r
+                GROUP BY 
+                    book_id, start_page
+            ) AS gr
+            JOIN 
+                books ON books.id = gr.book_id
+            GROUP BY 
+                book_id
+            ORDER BY 
+                num_of_read_pages DESC
+            LIMIT 5;
+        ");
+        
+            return $this->outApiJson('success', trans('main.success'),  $topReadBooks);
         } catch (Exception $th) {
             return $this->outApiJson('exception', $this->getExceptionMessage($th));
         }
@@ -90,6 +132,7 @@ class BookUserController extends Controller
         $response = \Http::post('https://run.mocky.io/v3/'.env('SMS_APP_CODE'), [
             'name' => $userData->name,
             'phone' => $userData->phone_number,
+            'message' => 'thanks for reading book'
         ]);
         return response()->json($response);
     }
